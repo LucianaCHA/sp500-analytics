@@ -4,3 +4,27 @@ __pycache__/
 dbt/target/
 datasets_kaggle/
 
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+#airflow.cfg
+airflow/logs/
+airflow/logs/*
+airflow/plugins/__pycache__/
+
+# desarrollo local
+postgres/data/
+minio/data/
+**/data/
+
+#  VSCode
+.vscode/
+
+# private
+*.pem
+*.key
+*.crt
+*.creds
+*.json
