@@ -8,7 +8,12 @@ output "bucket_arn" {
   value       = aws_s3_bucket.data_lake.arn
 }
 
-output "bucket_region" {
-  description = "Región del bucket"
-  value       = var.aws_region
+output "vpc_id" {
+  description = "ID de la VPC creada"
+  value       = aws_vpc.main.id
+}
+
+output "ec2_public_ip" {
+  description = "IP pública de la instancia EC2 del servidor ETL"
+  value       = aws_instance.etl_server.public_ip
 }
