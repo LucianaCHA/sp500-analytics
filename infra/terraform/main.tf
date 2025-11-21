@@ -48,3 +48,11 @@ resource "aws_s3_object" "curated_prefix" {
   bucket = aws_s3_bucket.data_lake.bucket
   key    = "curated/"
 }
+
+resource "aws_s3_bucket_public_access_block" "data_lake_block" {
+  bucket                  = aws_s3_bucket.data_lake.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
