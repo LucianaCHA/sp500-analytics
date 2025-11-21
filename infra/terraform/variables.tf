@@ -11,7 +11,7 @@ variable "env" {
 }
 
 variable "s3_bucket_name" {
-  description = "Nombre base del bucket S3 que funcionará como Data Lake del proyecto. Al nombre se le agrega el sufijo del entorno (dev/test/prod)."
+  description = "Test Nombre base del bucket S3 que funcionará como Data Lake del proyecto. Al nombre se le agrega el sufijo del entorno (dev/test/prod)."
   type        = string
 }
 
@@ -48,14 +48,4 @@ variable "ami_id" {
   description = "AMI para la instancia ETL"
   type        = string
   default     = "ami-0c02fb55956c7d316"
-}
-
-resource "aws_s3_bucket" "data_lake" {
-  bucket = "${var.s3_bucket_name}-${var.env}"
-
-  tags = {
-    Project = "sp500-analytics"
-    Env     = var.env
-    Owner   = var.owner_tag
-  }
 }
