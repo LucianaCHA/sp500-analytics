@@ -11,7 +11,7 @@ variable "env" {
 }
 
 variable "s3_bucket_name" {
-  description = "Nombre base del bucket S3 que funcionará como Data Lake del proyecto. Al nombre se le agrega el sufijo del entorno (dev/test/prod)."
+  description = "Test Nombre base del bucket S3 que funcionará como Data Lake del proyecto. Al nombre se le agrega el sufijo del entorno (dev/test/prod)."
   type        = string
 }
 
