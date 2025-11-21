@@ -2,6 +2,32 @@ data/*
 .env
 __pycache__/
 dbt/target/
+datasets_kaggle/
+
+# Python cache
+*.pyc
+*.pyo
+*.pyd
+
+# Airflow
+airflow/logs/
+airflow/logs/*
+airflow/plugins/__pycache__/
+
+# Desarrollo local
+postgres/data/
+minio/data/
+**/data/
+
+# VSCode
+.vscode/
+
+# Private keys
+*.pem
+*.key
+*.crt
+*.creds
+*.json
 
 # Terraform
 infra/terraform/.terraform/
