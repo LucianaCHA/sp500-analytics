@@ -28,3 +28,4 @@ minio/data/
 *.crt
 *.creds
 *.json
+notes/
