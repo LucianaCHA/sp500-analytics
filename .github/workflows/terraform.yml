@@ -52,11 +52,7 @@ jobs:
 
       - name: Terraform plan
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform plan \
-            -input=false \
-            -var="s3_bucket_name=sp500-datalake" \
-            -var="allowed_ip=181.170.148.167"
+        run: terraform plan -input=false
 
   terraform-apply:
     name: Terraform Apply (main)
@@ -93,9 +89,4 @@ jobs:
 
       - name: Terraform apply
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform apply \
-            -auto-approve \
-            -input=false \
-            -var="s3_bucket_name=sp500-datalake" \
-            -var="allowed_ip=181.170.148.167"
+        run: terraform apply -auto-approve -input=false
