@@ -97,7 +97,7 @@ Ejemplo:
 ```
 AWS_ACCESS_KEY_ID=admin
 ```
-### **2. Instalación – Versión local (dev)**
+### **2. Instalación – Versión local (dev)***
 
 ### Levantar todo el entorno
 
