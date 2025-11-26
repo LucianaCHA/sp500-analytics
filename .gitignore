@@ -34,6 +34,5 @@ notes/
 infra/terraform/.terraform/
 infra/terraform/.terraform/*
 infra/terraform/.terraform.lock.hcl
-infra/terraform/terraform.tfvars
 infra/terraform/terraform.tfstate
 infra/terraform/terraform.tfstate.backup
