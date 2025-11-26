@@ -1,5 +1,6 @@
 resource "aws_s3_bucket" "data_lake" {
-  bucket = "${var.s3_bucket_name}-${var.env}"
+  # nombre EXACTO del bucket, sin -env
+  bucket = var.s3_bucket_name
 
   tags = {
     Project = "sp500-analytics"
@@ -41,10 +42,10 @@ resource "aws_s3_object" "raw_prefix" {
 
 resource "aws_s3_object" "clean_prefix" {
   bucket = aws_s3_bucket.data_lake.bucket
-  key    = "clean/"
+  key    = "silver/"
 }
 
 resource "aws_s3_object" "curated_prefix" {
   bucket = aws_s3_bucket.data_lake.bucket
-  key    = "curated/"
+  key    = "gold/"
 }

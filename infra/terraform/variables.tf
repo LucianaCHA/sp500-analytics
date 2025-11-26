@@ -1,3 +1,8 @@
+variable "dockerhub_username" {
+  description = "Usuario de Docker Hub donde se publica la imagen sp500-etl"
+  type        = string
+}
+
 variable "aws_region" {
   description = "Región AWS donde se despliega la infraestructura del Data Lake para el proyecto SP500 Analytics. Se usa para asegurar consistencia entre servicios (S3, RDS, IAM, etc.)."
   type        = string
@@ -11,7 +16,7 @@ variable "env" {
 }
 
 variable "s3_bucket_name" {
-  description = "Nombre base del bucket S3 que funcionará como Data Lake del proyecto. Al nombre se le agrega el sufijo del entorno (dev/test/prod)."
+  description = "Nombre del bucket S3 que funcionará como Data Lake del proyecto."
   type        = string
 }
 
@@ -48,14 +53,4 @@ variable "ami_id" {
   description = "AMI para la instancia ETL"
   type        = string
   default     = "ami-0c02fb55956c7d316"
-}
-
-resource "aws_s3_bucket" "data_lake" {
-  bucket = "${var.s3_bucket_name}-${var.env}"
-
-  tags = {
-    Project = "sp500-analytics"
-    Env     = var.env
-    Owner   = var.owner_tag
-  }
 }
