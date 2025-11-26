@@ -41,8 +41,10 @@ El pipeline está basado en una arquitectura modular basada en los pasos del pip
 ## Estructura general del proyecto
 ```
 sp500-analytics/
-│
-├── dags/  # DAGs de Airflow (ingesta, pipelines, automatización)
+├── airflow/
+│ ├── dags/
+│ ├── logs/
+│ └── plugins/
 ├── data/ # datos locales para desarrollo/test idealmente no sube a git
 │   ├── raw/
 │   ├── clean/
@@ -57,6 +59,8 @@ sp500-analytics/
 │   ├── arquitectura.png
 │   ├── modelo_datos.png
 │   └── pipeline_diagrama.png
+├── minio/
+│ └── data/
 ├── scripts/
 ├── notebook/               
 ├── infra/ # config de servicios y docker
@@ -84,3 +88,48 @@ sp500-analytics/
 - Airflow
 
 ## Instalación y uso (versión local de desarrollo)
+
+### **1. Variables de entorno (.env)**
+
+Todas las configuraciones del entorno local se manejan mediante el archivo `.env` en la raíz.
+
+Ejemplo:
+```
+AWS_ACCESS_KEY_ID=admin
+```
+### **2. Instalación – Versión local (dev)**
+
+### Levantar todo el entorno
+
+```sh
+docker compose -p sp-500 up --build
+```
+- Esto levanta:
+
+- Airflow Webserver http://localhost:8080
+- Airflow Scheduler
+- Airflow Worker
+- Airflow Triggerer
+- Redis (Broker)
+- Postgres (Data Warehouse)
+- MinIO (Data Lake local)
+
+Accesos
+Airflow UI
+
+http://localhost:8080
+
+user: admin
+
+password: admin
+
+MinIO (simula AWS S3)
+
+http://localhost:9001
+
+user: admin
+
+password: admin123
+
+Bucket creado automáticamente:
+sp500-bronze

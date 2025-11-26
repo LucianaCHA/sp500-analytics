@@ -28,6 +28,7 @@ minio/data/
 *.crt
 *.creds
 *.json
+notes/
 
 # Terraform
 infra/terraform/.terraform/
