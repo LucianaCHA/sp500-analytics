@@ -5,6 +5,9 @@ resource "aws_instance" "etl_server" {
   vpc_security_group_ids = [aws_security_group.etl_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.etl_instance_profile.name
 
+  # 👉 NUEVO: asociar el key pair de AWS para poder entrar por SSH
+  key_name = var.key_name
+
   tags = {
     Name    = "sp500-etl-${var.env}"
     Project = "sp500-analytics"

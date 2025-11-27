@@ -53,3 +53,9 @@ variable "ami_id" {
   type        = string
   default     = "ami-0c02fb55956c7d316"
 }
+
+variable "key_name" {
+  description = "Nombre del key pair para acceder por SSH a la instancia ETL"
+  type        = string
+  default     = "sp500-key"
+}
