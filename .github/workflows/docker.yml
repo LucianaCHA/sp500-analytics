@@ -38,7 +38,6 @@ jobs:
 
       - name: Build Docker image
         run: |
-          # Evitar conflicto con contextos de Docker
           unset DOCKER_CONTEXT || true
 
           docker build \
@@ -79,7 +78,7 @@ jobs:
 
       - name: Deploy latest image on EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
 
             # 1) Carpeta base
@@ -106,7 +105,6 @@ jobs:
                 -p 5432:5432 \
                 postgres:15
             else
-              # Si existe pero está parado, lo levanto
               if ! sudo docker ps --format '{{.Names}}' | grep -q '^airflow-postgres$'; then
                 sudo docker start airflow-postgres
               fi
@@ -115,28 +113,28 @@ jobs:
             # 5) Pull de la última imagen del ETL
             sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
-            # 6) URL de conexión de Airflow a Postgres (DENTRO de la red de Docker)
-            export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
+            # 6) URL de conexión de Airflow a Postgres (dentro de la red airflow-net)
+            AIRFLOW_DB_URI="postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
 
-            # 7) Migrar la DB de Airflow (idempotente: se puede correr en cada deploy)
+            # 7) Migrar / inicializar la DB de Airflow (idempotente)
             sudo docker run --rm \
               --network airflow-net \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="\$AIRFLOW__DATABASE__SQL_ALCHEMY_CONN" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="\$AIRFLOW_DB_URI" \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
               airflow db migrate || true
 
-            # 8) Detener y borrar contenedor anterior
+            # 8) Detener y borrar contenedor anterior si existe
             if sudo docker ps -a --format '{{.Names}}' | grep -q '^sp500-etl$'; then
               sudo docker stop sp500-etl || true
               sudo docker rm sp500-etl || true
             fi
 
-            # 9) Levantar el nuevo contenedor de Airflow (webserver) usando la red y la DB correcta
+            # 9) Levantar Airflow webserver con la DB correcta y las variables del proyecto
             sudo docker run -d \
               --name sp500-etl \
               --network airflow-net \
               -p 8080:8080 \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="\$AIRFLOW__DATABASE__SQL_ALCHEMY_CONN" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="\$AIRFLOW_DB_URI" \
               -e AWS_DB_USER=${AWS_DB_USER} \
               -e AWS_DB_PASSWORD=${AWS_DB_PASSWORD} \
               -e AWS_DB_HOST=${AWS_DB_HOST} \
