@@ -2,13 +2,6 @@ FROM apache/airflow:2.8.2-python3.10
 LABEL maintainer="lucianachamorro87@gmail.com"
 
 # -----------------------------------
-# 1. Instalar dependencias del sistema (si hiciera falta)
-#    → Esto sí requiere root
-# -----------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-# -----------------------------------
 # 2. Instalar dependencias Python como 'airflow'
 # -----------------------------------
 COPY requirements.txt /requirements.txt
@@ -18,8 +11,9 @@ RUN chown airflow:0 /requirements.txt
 
 # Cambiar a usuario airflow para usar pip
 USER airflow
-RUN pip install --no-cache-dir --user -r /requirements.txt
-
+RUN pip install --user --upgrade pip && \
+    pip install --user -r /requirements.txt
+    
 # -----------------------------------
 # 3. Copiar pipeline + dags
 # -----------------------------------
