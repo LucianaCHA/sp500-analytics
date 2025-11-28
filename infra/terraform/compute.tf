@@ -1,3 +1,15 @@
+/*
+  compute.tf
+  ------------------------------------
+  Este archivo define la **parte de cómputo** de la infraestructura:
+  - Crea la instancia EC2 donde corre nuestro ETL (`aws_instance.etl_server`).
+  - Le asocia el security group, el rol IAM y el key pair para acceso por SSH.
+  - Usa `user_data` para instalar Docker y levantar automáticamente el contenedor del ETL
+    desde Docker Hub, sin intervención manual.
+  - Crea una Elastic IP (`aws_eip.etl_ip`) para que la instancia tenga siempre
+    la misma IP pública, incluso si se reinicia o se recrea.
+*/
+
 resource "aws_instance" "etl_server" {
   ami                    = var.ami_id
   instance_type          = var.instance_type
@@ -5,7 +17,7 @@ resource "aws_instance" "etl_server" {
   vpc_security_group_ids = [aws_security_group.etl_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.etl_instance_profile.name
 
-  # 👉 NUEVO: asociar el key pair de AWS para poder entrar por SSH
+  # 👉 Key pair para poder entrar por SSH
   key_name = var.key_name
 
   tags = {
@@ -36,7 +48,6 @@ resource "aws_instance" "etl_server" {
     systemctl enable docker
     systemctl start docker
 
-    # Por si el usuario no está en el grupo docker, usamos sudo siempre
     echo "Docker instalado, iniciando pull de la imagen"
 
     # PULL de la última imagen desde Docker Hub
@@ -70,3 +81,44 @@ resource "aws_eip" "etl_ip" {
     Env     = var.env
   }
 }
+
+/*
+
+2) Qué decir cuando muestres este archivo (guion hablado)
+
+Te dejo un speech cortito que podés usar casi textual:
+
+“Este archivo se llama compute.tf y define toda la parte de cómputo del proyecto.
+Acá creamos la instancia EC2 donde corre nuestro ETL, que es este recurso aws_instance.etl_server.
+
+A la instancia le asociamos:
+
+el tipo de instancia y la AMI que usamos (var.instance_type, var.ami_id),
+
+la subred pública donde va a vivir,
+
+el security group que le abre sólo los puertos necesarios,
+
+y el rol IAM para que pueda hablar con S3 y el resto de servicios.
+También le pasamos un key pair para poder entrar por SSH si hace falta debug.”
+
+“Lo más interesante es este bloque de user_data.
+Es un script que se ejecuta automáticamente cuando la instancia se crea.
+Lo que hace es:
+
+Detectar el sistema operativo (Ubuntu o Amazon Linux).
+
+Instalar y habilitar Docker.
+
+Hacer docker pull de la imagen del ETL que publicamos en Docker Hub.
+
+Si había un contenedor viejo sp500-etl, lo detiene y lo borra.
+
+Levanta el contenedor nuevo con docker run y lo deja configurado para reiniciarse solo si la máquina se reinicia.
+
+Con esto logramos que, cada vez que Terraform crea o recrea la EC2, la máquina se autoconfigure y deje corriendo la última versión del ETL sin que nadie tenga que entrar a configurar nada a mano.”
+
+“Abajo tenemos otro recurso, aws_eip.etl_ip, que crea una Elastic IP y se la asocia a esta instancia.
+Esto nos garantiza que la instancia tenga siempre la misma IP pública, aunque la paremos, la prendamos o la recreemos desde Terraform.
+Eso es clave para conectarnos desde afuera y para los pipelines de despliegue.”
+*/
