@@ -20,7 +20,6 @@ AWS_ACCESS_KEY_ID = config.AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY = config.AWS_SECRET_ACCESS_KEY
 AWS_REGION = config.AWS_DEFAULT_REGION
 SILVER_BUCKET_NAME = config.S3_BUCKET
-# ✅ Path Correcto para info
 S3_KEY_PATH = "silver/company_info/fact_company_info.parquet"
 
 # -----------------------------------------------------\
