@@ -2,13 +2,6 @@ FROM apache/airflow:2.8.2-python3.10
 LABEL maintainer="lucianachamorro87@gmail.com"
 
 # -----------------------------------
-# 1. Instalar dependencias del sistema (si hiciera falta)
-#    → Esto sí requiere root
-# -----------------------------------
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-# -----------------------------------
 # 2. Instalar dependencias Python como 'airflow'
 # -----------------------------------
 COPY requirements.txt /requirements.txt
