@@ -13,10 +13,10 @@ RUN pip install --user --upgrade pip && \
     pip install --user -r /requirements.txt
 
 # Copiar código de negocio (pipeline)
-COPY pipeline/ /opt/pipeline/
+# COPY pipeline/ /opt/pipeline/
 
 # Copiar DAGs (los que hoy tenés en airflow/dags)
-COPY airflow/dags/ /opt/airflow/dags/
+# COPY airflow/dags/ /opt/airflow/dags/
 
 # Arrancar Airflow
 CMD ["airflow", "standalone"]
