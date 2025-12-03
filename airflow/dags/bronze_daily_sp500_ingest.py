@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 
+from airflow.api.common.experimental.trigger_dag import trigger_dag
 from airflow.operators.python import PythonOperator
 from scripts_loader import ScriptLoader
 
@@ -59,4 +60,13 @@ with DAG(
         dag=dag,
     )
 
-    load_sp500_task >> load_spy_task
+    def trigger_silver_dag(**context):
+        trigger_dag(dag_id="silver_daily_sp500_process", run_id=f"bronze_trigger__{context['ds']}", conf={})
+
+    trigger_silver = PythonOperator(
+        task_id="trigger_silver",
+        python_callable=trigger_silver_dag,
+        provide_context=True
+    )
+
+    load_sp500_task >> load_spy_task >> trigger_silver
