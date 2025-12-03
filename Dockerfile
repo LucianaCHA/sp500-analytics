@@ -18,7 +18,6 @@ ENV PYTHONPATH=/opt/airflow/pipeline:$PYTHONPATH
 
 RUN pip install --user --upgrade pip && \
     pip install --user -r /requirements.txt
-
 # -----------------------------------
 # 2. Copiar pipeline + dags DENTRO DE AIRFLOW
 # -----------------------------------
