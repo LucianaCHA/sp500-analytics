@@ -7,7 +7,8 @@ extend-ignore =
     # W503: line break before binary operator (conflicto con black)
     W503,
     # E501: line too long (manejado por black)
-    E501
+    E501,
+    D100, D400
 exclude =
     .git,
     __pycache__,
@@ -26,6 +27,6 @@ exclude =
     .tox
 max-complexity = 10
 per-file-ignores =
-    __init__.py:F401
+    __init__.py: F401,D100,D101,D102,D103,D104,D105,D107
     tests/*:S101
     */migrations/*:E501
