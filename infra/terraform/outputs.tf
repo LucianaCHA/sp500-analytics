@@ -22,3 +22,8 @@ output "etl_public_ip" {
   value       = aws_eip.etl_ip.public_ip
   description = "IP pública fija (Elastic IP) del servidor ETL"
 }
+
+output "etl_instance_id" {
+  description = "ID de la instancia EC2 del servidor ETL"
+  value       = aws_instance.etl_server.id
+}
