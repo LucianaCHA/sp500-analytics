@@ -3,7 +3,7 @@
 ########################################
 
 data "archive_file" "start_airflow_zip" {
-  type        = "zip"
+  type = "zip"
   # 👇 El .py está en ../lambda relativo a este módulo terraform
   source_file = "${path.module}/../lambda/start_airflow_lambda.py"
   output_path = "${path.module}/../lambda/start_airflow_lambda.zip"
