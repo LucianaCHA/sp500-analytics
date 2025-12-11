@@ -10,7 +10,7 @@ LAST_ACCESS_PARAM = os.environ.get(
     "LAST_ACCESS_PARAM",
     "/sp500/airflow/last_access"
 )
-IDLE_SECONDS = int(os.environ.get("IDLE_SECONDS", "120"))  # 10 min por defecto
+IDLE_SECONDS = int(os.environ.get("IDLE_SECONDS", "600"))  # 10 min por defecto
 
 
 def lambda_handler(event, context):

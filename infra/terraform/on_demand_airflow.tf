@@ -117,7 +117,7 @@ resource "aws_lambda_function" "stop_airflow_if_idle" {
     variables = {
       INSTANCE_ID       = aws_instance.etl_server.id
       LAST_ACCESS_PARAM = "/sp500/airflow/last_access"
-      IDLE_SECONDS      = "120" # 2 min minutos; podés bajarlo a 120 para probar
+      IDLE_SECONDS      = "600" # 2 min minutos; podés bajarlo a 120 para probar
     }
   }
 
