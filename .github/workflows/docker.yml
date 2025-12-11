@@ -9,6 +9,8 @@ on:
       - 'dags/**'
       - 'scripts/**'
       - 'infra/**'
+      - 'streamlit/**'       
+      - '**/informe_app.py'
       - 'Dockerfile'
       - 'requirements.txt'
       - 'config.py'
