@@ -42,7 +42,7 @@ class Config:
     AWS_DEFAULT_REGION = AWS_DEFAULT_REGION
 
     S3_BUCKET = S3_BUCKET
-    S3_PREFIX = "datasets-kaggle"
+    S3_PREFIX = "raw"
 
     SP500_URL = SP500_URL
     S3_BRONZE_DIR_PREFIX = "bronze"

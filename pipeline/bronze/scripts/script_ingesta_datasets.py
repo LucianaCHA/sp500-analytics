@@ -22,7 +22,7 @@ DATASETS = [
     "chickenrobot/historical-stocks-of-companies-of-the-sp-and-500",
 ]
 
-BASE_DIR = "datasets_kaggle"
+BASE_DIR = "raw"
 AWS_BUCKET_NAME = Config.S3_BUCKET
 
 os.makedirs(BASE_DIR, exist_ok=True)
@@ -67,7 +67,7 @@ def main():
                 print(f"→ Copiado: {file}")
 
                 # Subir a S3
-                s3_key = f"{S3_PREFIX}{dataset_name}/{file}"
+                s3_key = f"{S3_PREFIX}/{dataset_name}/{file}"
                 upload_to_s3(dst, AWS_BUCKET_NAME, s3_key)
 
     print("\n✔ PROCESO COMPLETADO")
