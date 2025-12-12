@@ -9,16 +9,25 @@ resource "aws_security_group" "etl_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${var.allowed_ip}/0"]
+    cidr_blocks = ["${var.allowed_ip}/32"]
   }
 
-  # Airflow UI (opcional, puerto 8080)
+  # Airflow UI (8080)
   ingress {
     description = "Airflow UI"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["${var.allowed_ip}/0"]
+    cidr_blocks = ["${var.allowed_ip}/32"]
+  }
+
+  # Streamlit (8501)
+  ingress {
+    description = "Streamlit UI"
+    from_port   = 8501
+    to_port     = 8501
+    protocol    = "tcp"
+    cidr_blocks = ["${var.allowed_ip}/32"]
   }
 
   # Salida a Internet
