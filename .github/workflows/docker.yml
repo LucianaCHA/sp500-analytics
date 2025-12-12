@@ -221,4 +221,31 @@ jobs:
               -e ENVIRONMENT=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest triggerer
 
+            # 14) Levantar Streamlit App
+            echo "Levantando Streamlit..."
+
+            # Detener y borrar si ya existe
+            if sudo docker ps -a --format '{{.Names}}' | grep -q '^streamlit-app$'; then
+              echo "Recreando contenedor streamlit-app..."
+              sudo docker stop streamlit-app || true
+              sudo docker rm streamlit-app || true
+            fi
+
+            sudo docker run -d \
+              --name streamlit-app \
+              --network airflow-net \
+              --restart unless-stopped \
+              -p 8501:8501 \
+              --log-driver awslogs \
+              --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
+              --log-opt awslogs-group=/sp500/etl \
+              --log-opt awslogs-stream=sp500-streamlit \
+              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+              -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
+              -e S3_BUCKET=${S3_BUCKET} \
+              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+              streamlit run dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0
+
+
           EOF
