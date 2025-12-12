@@ -2,8 +2,7 @@ name: Docker CI/CD
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'airflow/**'
       - 'dags/**'
@@ -29,8 +28,7 @@ jobs:
     name: Build and Push ETL Docker Image
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -47,16 +45,14 @@ jobs:
             "${{ env.BUILD_CONTEXT }}"
 
       - name: Push ETL image
-        run: |
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
+        run: docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
 
   # === BUILD Y PUSH DE STREAMLIT ===
   build-and-push-streamlit:
     name: Build and Push Streamlit Docker Image
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -73,34 +69,33 @@ jobs:
             ./dashboard/streamlit_app
 
       - name: Push Streamlit image
-        run: |
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest"
+        run: docker push "${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest"
 
   # === DEPLOY DE AIRFLOW/ETL EN EC2 ===
   deploy-etl-to-ec2:
-    environment: prod
     name: Deploy ETL/Airflow to EC2
     needs: build-and-push-etl
     runs-on: ubuntu-latest
+    environment: prod
 
     env:
+      # Vars (no sensibles)
       AWS_DB_USER: ${{ vars.AWS_DB_USER }}
-      AWS_DB_PASSWORD: ${{ vars.AWS_DB_PASSWORD }}
       AWS_DB_HOST: ${{ vars.AWS_DB_HOST }}
       AWS_DB_PORT: ${{ vars.AWS_DB_PORT }}
       AWS_DB_NAME: ${{ vars.AWS_DB_NAME }}
-      AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ vars.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
       S3_BUCKET: ${{ vars.S3_BUCKET }}
-      AIRFLOW__CORE__FERNET_KEY: ${{ vars.AIRFLOW__CORE__FERNET_KEY }}
-      AIRFLOW__WEBSERVER__SECRET_KEY: ${{ vars.AIRFLOW__WEBSERVER__SECRET_KEY }}
-      pepe: pepe
 
+      # Secrets (sensibles)
+      AWS_DB_PASSWORD: ${{ secrets.AWS_DB_PASSWORD }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AIRFLOW__CORE__FERNET_KEY: ${{ secrets.AIRFLOW__CORE__FERNET_KEY }}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${{ secrets.AIRFLOW__WEBSERVER__SECRET_KEY }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup SSH key
         run: |
@@ -109,12 +104,18 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      - name: Debug (safe)
+        run: |
+          echo "REGION='${{ env.AWS_DEFAULT_REGION }}'"
+          echo "BUCKET='${{ env.S3_BUCKET }}'"
+          test -n "${{ env.AWS_ACCESS_KEY_ID }}" && echo "AWS_ACCESS_KEY_ID OK" || echo "AWS_ACCESS_KEY_ID VACIO"
+          test -n "${{ env.AIRFLOW__WEBSERVER__SECRET_KEY }}" && echo "WEBSERVER_SECRET_KEY OK" || echo "WEBSERVER_SECRET_KEY VACIO"
+          test -n "${{ env.AIRFLOW__CORE__FERNET_KEY }}" && echo "FERNET_KEY OK" || echo "FERNET_KEY VACIO"
+
       - name: Deploy ETL/Airflow to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
-
-            printenv
 
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
 
@@ -152,17 +153,15 @@ jobs:
               fi
             done
 
-            # --- Limpieza fuerte (SIN volúmenes) ---
             sudo docker container prune -f || true
             sudo docker image prune -a -f || true
             sudo docker builder prune -a -f || true
 
-            # --- Pull image nueva ---
             sudo docker pull "${IMAGE}"
 
             AIRFLOW_DB_URI="postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
 
-            # Migración DB
+            # Migración DB (IMPORTANTE: sin || true mientras debugueás)
             sudo docker run --rm \
               --network airflow-net \
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
@@ -170,7 +169,7 @@ jobs:
               -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
-              "${IMAGE}" airflow db migrate || true
+              "${IMAGE}" airflow db migrate
 
             # Webserver
             sudo docker run -d \
@@ -245,23 +244,21 @@ jobs:
               "${IMAGE}" triggerer
           EOF
 
-
   # === DEPLOY DE STREAMLIT EN EC2 ===
   deploy-streamlit-to-ec2:
-    environment: prod
     name: Deploy Streamlit to EC2
     needs: build-and-push-streamlit
     runs-on: ubuntu-latest
+    environment: prod
 
     env:
-      AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ vars.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
       S3_BUCKET: ${{ vars.S3_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup SSH key
         run: |
@@ -272,7 +269,7 @@ jobs:
 
       - name: Deploy Streamlit to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
 
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest"
@@ -284,35 +281,32 @@ jobs:
               sudo systemctl start docker || true
             fi
 
-            # --- liberar puerto 8501 (cualquier contenedor que lo esté usando) ---
-            for id in $(sudo docker ps --filter "publish=8501" -q); do
-              sudo docker stop "$id" || true
-              sudo docker rm "$id" || true
+            for id in \$(sudo docker ps --filter "publish=8501" -q); do
+              sudo docker stop "\$id" || true
+              sudo docker rm "\$id" || true
             done
 
-            # si existían por nombre
             sudo docker stop sp500-streamlit streamlit-app 2>/dev/null || true
             sudo docker rm sp500-streamlit streamlit-app 2>/dev/null || true
 
-            # --- limpieza fuerte (sin volúmenes) ---
             sudo docker container prune -f || true
             sudo docker image prune -a -f || true
             sudo docker builder prune -a -f || true
 
-            sudo docker pull "${IMAGE}"
+            sudo docker pull "\${IMAGE}"
 
             sudo docker run -d \
               --name sp500-streamlit \
               --restart unless-stopped \
               -p 8501:8501 \
               --log-driver awslogs \
-              --log-opt awslogs-region=${{ vars.AWS_DEFAULT_REGION }} \
+              --log-opt awslogs-region="\${AWS_DEFAULT_REGION}" \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-streamlit \
-              -e AWS_ACCESS_KEY_ID=${{ vars.AWS_ACCESS_KEY_ID }} \
-              -e AWS_SECRET_ACCESS_KEY=${{ vars.AWS_SECRET_ACCESS_KEY }} \
-              -e AWS_DEFAULT_REGION=${{ vars.AWS_DEFAULT_REGION }} \
-              -e AWS_REGION=${{ vars.AWS_DEFAULT_REGION }} \
-              -e S3_BUCKET=${{ vars.S3_BUCKET }} \
-              "${IMAGE}"
+              -e AWS_ACCESS_KEY_ID="\${AWS_ACCESS_KEY_ID}" \
+              -e AWS_SECRET_ACCESS_KEY="\${AWS_SECRET_ACCESS_KEY}" \
+              -e AWS_DEFAULT_REGION="\${AWS_DEFAULT_REGION}" \
+              -e AWS_REGION="\${AWS_DEFAULT_REGION}" \
+              -e S3_BUCKET="\${S3_BUCKET}" \
+              "\${IMAGE}"
           EOF
