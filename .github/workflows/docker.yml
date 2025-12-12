@@ -168,10 +168,9 @@ jobs:
               -e ENVIRONMENT=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest webserver
 
-            # 12) Levantar Airflow SCHEDULER (LO QUE FALTABA)
+            # 12) Levantar Airflow SCHEDULER
             echo "Levantando Scheduler..."
 
-            # Detener y remover si ya existe
             if sudo docker ps -a --format '{{.Names}}' | grep -q '^airflow-scheduler$'; then
               echo "Recreando contenedor airflow-scheduler..."
               sudo docker stop airflow-scheduler || true
@@ -195,7 +194,7 @@ jobs:
               -e ENVIRONMENT=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest scheduler
 
-            # 13) Levantar Airflow TRIGGERER (opcional pero recomendado)
+            # 13) Levantar Airflow TRIGGERER
             echo "Levantando Triggerer..."
 
             if sudo docker ps -a --format '{{.Names}}' | grep -q '^airflow-triggerer$'; then
@@ -221,18 +220,34 @@ jobs:
               -e ENVIRONMENT=prod \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest triggerer
 
-            # 14) Levantar Streamlit App
+            # 14) Levantar Streamlit App (con limpieza + override de entrypoint)
             echo "Levantando Streamlit..."
 
-            # Detener y borrar si ya existe
+            # Detener y borrar contenedor si existe
             if sudo docker ps -a --format '{{.Names}}' | grep -q '^streamlit-app$'; then
-              echo "Recreando contenedor streamlit-app..."
+              echo "Deteniendo y eliminando contenedor streamlit-app..."
               sudo docker stop streamlit-app || true
               sudo docker rm streamlit-app || true
             fi
 
+            # Eliminar imagen anterior para liberar espacio (si existe)
+            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest$'; then
+              echo "Eliminando imagen anterior para liberar espacio..."
+              sudo docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest || true
+            fi
+
+            # Limpieza extra (seguro, no borra volúmenes)
+            sudo docker container prune -f || true
+            sudo docker image prune -f || true
+
+            # Pull de la última imagen
+            echo "Haciendo pull de la imagen para Streamlit..."
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+            # Levantar Streamlit con entrypoint override (evita que se ejecute 'airflow ...')
             sudo docker run -d \
               --name streamlit-app \
+              --network airflow-net \
               --restart unless-stopped \
               -p 8501:8501 \
               --log-driver awslogs \
@@ -243,9 +258,8 @@ jobs:
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
+              --entrypoint /bin/bash \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
               -lc "streamlit run dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0"
-
-
 
           EOF
