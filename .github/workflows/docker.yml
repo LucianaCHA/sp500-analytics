@@ -242,7 +242,7 @@ jobs:
               -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
               "${IMAGE}" triggerer
-            EOF
+          EOF
 
 
   # === DEPLOY DE STREAMLIT EN EC2 ===
