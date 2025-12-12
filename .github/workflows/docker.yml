@@ -188,7 +188,7 @@ jobs:
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
               -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY} \
               -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY} \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest airflow db migrate || true
+              "${IMAGE}" airflow db migrate || true
 
             # 11) Levantar Airflow webserver
             sudo docker run -d \
