@@ -9,7 +9,7 @@ on:
       - 'dags/**'
       - 'scripts/**'
       - 'infra/**'
-      - 'streamlit/**'
+      - 'dashboard/**'
       - '**/informe_app.py'
       - 'Dockerfile'
       - 'requirements.txt'
@@ -24,8 +24,10 @@ env:
   DOCKERFILE_PATH: ./Dockerfile
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Image
+  # === BUILD Y PUSH DE ETL ===
+
+  build-and-push-etl:
+    name: Build and Push ETL Docker Image
     runs-on: ubuntu-latest
 
     steps:
@@ -38,7 +40,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Docker image
+      - name: Build ETL image
         run: |
           unset DOCKER_CONTEXT || true
 
@@ -47,13 +49,42 @@ jobs:
             -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
             ${{ env.BUILD_CONTEXT }}
 
-      - name: Push Docker image
+      - name: Push ETL image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
-  deploy-to-ec2:
-    name: Deploy to EC2
-    needs: build-and-push
+  build-and-push-streamlit:
+    name: Build and Push Streamlit Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Streamlit image
+        run: |
+          unset DOCKER_CONTEXT || true
+
+          docker build \
+            -f ./dashboard/streamlit_app/Dockerfile \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest \
+            ./dashboard/streamlit_app
+
+      - name: Push Streamlit image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest
+
+  # === DEPLOY DE AIRFLOW/ETL EN EC2 ===
+
+  deploy-etl-to-ec2:
+    name: Deploy ETL/Airflow to EC2
+    needs: build-and-push-etl
     runs-on: ubuntu-latest
 
     env:
@@ -80,7 +111,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Deploy latest image on EC2
+      - name: Deploy ETL/Airflow to EC2
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
@@ -154,11 +185,10 @@ jobs:
             # 10) Migrar / inicializar la DB de Airflow (idempotente)
             sudo docker run --rm \
               --network airflow-net \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
-              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
-              "${IMAGE}" \
-              airflow db migrate || true
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY} \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY} \
+              "${IMAGE}" airflow db migrate || true
 
             # 11) Levantar Airflow webserver
             sudo docker run -d \
@@ -170,9 +200,9 @@ jobs:
               --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-webserver \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
-              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY} \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY} \
               -e AWS_DB_USER=${AWS_DB_USER} \
               -e AWS_DB_PASSWORD=${AWS_DB_PASSWORD} \
               -e AWS_DB_HOST=${AWS_DB_HOST} \
@@ -227,13 +257,59 @@ jobs:
               -e ENVIRONMENT=prod \
               "${IMAGE}" triggerer
 
-            # 14) Levantar Streamlit App (override de entrypoint)
-            echo "Levantando Streamlit..."
+          EOF
+
+
+  deploy-streamlit-to-ec2:
+    name: Deploy Streamlit to EC2
+    needs: build-and-push-streamlit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy Streamlit to EC2
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+
+            # Crear carpeta base
+            sudo mkdir -p /opt/sp500
+            cd /opt/sp500
+
+            # Asegurar Docker
+            if ! sudo systemctl is-active --quiet docker; then
+              sudo systemctl start docker || true
+            fi
+
+            # Detener y eliminar contenedor anterior
+            if sudo docker ps -a --format '{{.Names}}' | grep -q '^sp500-streamlit$'; then
+              sudo docker stop sp500-streamlit || true
+              sudo docker rm sp500-streamlit || true
+            fi
+
+            # Borrar imagen anterior para liberar espacio
+            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest$'; then
+              sudo docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest || true
+            fi
+
+            # Pull de la imagen más reciente
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest
+
+            # Levantar contenedor Streamlit aislado
             sudo docker run -d \
-              --name streamlit-app \
-              --network airflow-net \
+              --name sp500-streamlit \
               --restart unless-stopped \
               -p 8501:8501 \
+              -v /opt/sp500/pipeline:/pipeline \
               --log-driver awslogs \
               --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
               --log-opt awslogs-group=/sp500/etl \
@@ -242,8 +318,5 @@ jobs:
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
-              --entrypoint /bin/bash \
-              "${IMAGE}" \
-              -lc "streamlit run /opt/airflow/dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0"
-
+              ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest
           EOF
