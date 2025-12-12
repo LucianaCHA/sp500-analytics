@@ -95,6 +95,7 @@ jobs:
       AIRFLOW__CORE__FERNET_KEY: ${{ vars.AIRFLOW__CORE__FERNET_KEY }}
       AIRFLOW__WEBSERVER__SECRET_KEY: ${{ vars.AIRFLOW__WEBSERVER__SECRET_KEY }}
 
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -163,7 +164,8 @@ jobs:
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
               -e AIRFLOW__CORE__FERNET_KEY="${{ vars.AIRFLOW__CORE__FERNET_KEY }}" \
               -e AIRFLOW__WEBSERVER__SECRET_KEY="${{ vars.AIRFLOW__WEBSERVER__SECRET_KEY }}" \
-              -e AIRFLOW__CORE__EXECUTOR=LocalExecutor
+              -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+              -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               "${IMAGE}" airflow db migrate || true
 
             # Webserver
@@ -190,6 +192,7 @@ jobs:
               -e AWS_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e S3_BUCKET=${{ vars.S3_BUCKET }} \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+              -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
               "${IMAGE}" webserver
 
@@ -211,6 +214,7 @@ jobs:
               -e AWS_DEFAULT_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e AWS_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e S3_BUCKET=${{ vars.S3_BUCKET }} \
+              -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
               "${IMAGE}" scheduler
 
@@ -232,6 +236,7 @@ jobs:
               -e AWS_DEFAULT_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e AWS_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e S3_BUCKET=${{ vars.S3_BUCKET }} \
+              -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
               "${IMAGE}" triggerer
           EOF
