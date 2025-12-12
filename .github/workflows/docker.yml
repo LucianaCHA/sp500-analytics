@@ -163,6 +163,7 @@ jobs:
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
               -e AIRFLOW__CORE__FERNET_KEY="${{ vars.AIRFLOW__CORE__FERNET_KEY }}" \
               -e AIRFLOW__WEBSERVER__SECRET_KEY="${{ vars.AIRFLOW__WEBSERVER__SECRET_KEY }}" \
+              -e AIRFLOW__CORE__EXECUTOR=LocalExecutor
               "${IMAGE}" airflow db migrate || true
 
             # Webserver
@@ -188,6 +189,7 @@ jobs:
               -e AWS_DEFAULT_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e AWS_REGION=${{ vars.AWS_DEFAULT_REGION }} \
               -e S3_BUCKET=${{ vars.S3_BUCKET }} \
+              -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e ENVIRONMENT=prod \
               "${IMAGE}" webserver
 
