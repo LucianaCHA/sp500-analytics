@@ -25,7 +25,6 @@ env:
 
 jobs:
   # === BUILD Y PUSH DE ETL ===
-
   build-and-push-etl:
     name: Build and Push ETL Docker Image
     runs-on: ubuntu-latest
@@ -53,6 +52,7 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
+  # === BUILD Y PUSH DE STREAMLIT ===
   build-and-push-streamlit:
     name: Build and Push Streamlit Docker Image
     runs-on: ubuntu-latest
@@ -81,7 +81,6 @@ jobs:
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest
 
   # === DEPLOY DE AIRFLOW/ETL EN EC2 ===
-
   deploy-etl-to-ec2:
     name: Deploy ETL/Airflow to EC2
     needs: build-and-push-etl
@@ -113,7 +112,7 @@ jobs:
 
       - name: Deploy ETL/Airflow to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
 
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
@@ -148,15 +147,8 @@ jobs:
               -p 5432:5432 \
               postgres:15
 
-            # 5) Detener y borrar contenedor anterior si existe
-            if sudo docker ps -a --format '{{.Names}}' | grep -q '^sp500-etl$'; then
-              echo "Encontrado contenedor anterior sp500-etl, deteniendo y eliminando..."
-              sudo docker stop sp500-etl || true
-              sudo docker rm sp500-etl || true
-            fi
-
-            # 5.1) Scheduler / Triggerer / Streamlit: stop+rm si existen (así recreás limpio)
-            for c in airflow-scheduler airflow-triggerer streamlit-app; do
+            # 5) Detener y borrar contenedores anteriores si existen
+            for c in sp500-etl airflow-scheduler airflow-triggerer; do
               if sudo docker ps -a --format '{{.Names}}' | grep -q "^${c}$"; then
                 echo "Deteniendo y eliminando contenedor ${c}..."
                 sudo docker stop "${c}" || true
@@ -185,9 +177,9 @@ jobs:
             # 10) Migrar / inicializar la DB de Airflow (idempotente)
             sudo docker run --rm \
               --network airflow-net \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
-              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY} \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY} \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
+              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
               "${IMAGE}" airflow db migrate || true
 
             # 11) Levantar Airflow webserver
@@ -200,9 +192,9 @@ jobs:
               --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-webserver \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
-              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY} \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY} \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
+              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
               -e AWS_DB_USER=${AWS_DB_USER} \
               -e AWS_DB_PASSWORD=${AWS_DB_PASSWORD} \
               -e AWS_DB_HOST=${AWS_DB_HOST} \
@@ -211,6 +203,7 @@ jobs:
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
+              -e AWS_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               -e ENVIRONMENT=prod \
               "${IMAGE}" webserver
@@ -232,6 +225,7 @@ jobs:
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
+              -e AWS_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               -e ENVIRONMENT=prod \
               "${IMAGE}" scheduler
@@ -253,17 +247,23 @@ jobs:
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
+              -e AWS_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               -e ENVIRONMENT=prod \
               "${IMAGE}" triggerer
-
           EOF
 
-
+  # === DEPLOY DE STREAMLIT EN EC2 ===
   deploy-streamlit-to-ec2:
     name: Deploy Streamlit to EC2
     needs: build-and-push-streamlit
     runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ vars.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
 
     steps:
       - name: Checkout repo
@@ -278,8 +278,10 @@ jobs:
 
       - name: Deploy Streamlit to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
+
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest"
 
             # Crear carpeta base
             sudo mkdir -p /opt/sp500
@@ -290,19 +292,21 @@ jobs:
               sudo systemctl start docker || true
             fi
 
-            # Detener y eliminar contenedor anterior
-            if sudo docker ps -a --format '{{.Names}}' | grep -q '^sp500-streamlit$'; then
-              sudo docker stop sp500-streamlit || true
-              sudo docker rm sp500-streamlit || true
-            fi
+            # Liberar puerto 8501 por si quedó ocupado (contenedores viejos)
+            sudo docker stop sp500-streamlit streamlit-app 2>/dev/null || true
+            sudo docker rm sp500-streamlit streamlit-app 2>/dev/null || true
 
             # Borrar imagen anterior para liberar espacio
-            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest$'; then
-              sudo docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest || true
+            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE}$"; then
+              sudo docker rmi "${IMAGE}" || true
             fi
 
+            # Limpieza extra (no borra volúmenes)
+            sudo docker container prune -f || true
+            sudo docker image prune -f || true
+
             # Pull de la imagen más reciente
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest
+            sudo docker pull "${IMAGE}"
 
             # Levantar contenedor Streamlit aislado
             sudo docker run -d \
@@ -317,6 +321,7 @@ jobs:
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
+              -e AWS_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
-              ${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest
+              "${IMAGE}"
           EOF
