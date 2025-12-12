@@ -310,7 +310,6 @@ jobs:
               --restart unless-stopped \
               -p 8501:8501 \
               -v /opt/sp500/pipeline:/pipeline \
-              -v /opt/sp500/dashboard/streamlit_app:/streamlit_app \
               --log-driver awslogs \
               --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
               --log-opt awslogs-group=/sp500/etl \
