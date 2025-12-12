@@ -233,7 +233,6 @@ jobs:
 
             sudo docker run -d \
               --name streamlit-app \
-              --network airflow-net \
               --restart unless-stopped \
               -p 8501:8501 \
               --log-driver awslogs \
@@ -245,7 +244,8 @@ jobs:
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
-              streamlit run dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0
+              -lc "streamlit run dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0"
+
 
 
           EOF
