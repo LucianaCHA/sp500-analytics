@@ -160,9 +160,10 @@ sp500-analytics/
 │   ├── clean/
 │   └── curated/
 ├── dashboard/ # tablero
-│   └── wip/
+│   └── streamlit_app
+|       └── app.py # tablero con vistaas de capa gold
 ├── docs/
-│   ├── 01_project_requiriments.md
+│   ├── 01_project_requirements.md
 │   ├── ... documentación del proyecto
 ├── minio/
 │ └── data/
@@ -228,10 +229,29 @@ Para más detalles, ver [.pre-commit-setup.md](.pre-commit-setup.md)
 ### 1. Variables de entorno (.env)
 
 Todas las configuraciones del entorno local se manejan mediante el archivo `.env` en la raíz.
+Para esto reemplazar envs y renombrar archivo env.example como .env
 
 Ejemplo:
 ```
 AWS_ACCESS_KEY_ID=admin
+
+```
+### Configuración importante: __FERNET_KEY__ para Airflow
+
+Airflow utiliza una clave Fernet para cifrar conexiones y variables sensibles en la metadata DB.
+Si no configurás esta variable, Airflow generará una nueva clave cada vez, lo que puede provocar errores o pérdida de acceso a conexiones cifradas.
+
+Para generar una FERNET_KEY válida:
+
+```
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+```
+
+Reeemplazar .env:
+
+```
+FERNET_KEY=CLAVE_GENERADA
 ```
 ## 2. Levantar el entorno con Docker
 
@@ -244,5 +264,6 @@ Servicios disponibles:
 | Servicio | URL | Credenciales |
 |---------|-----|--------------|
 | Airflow Webserver | http://localhost:8080 | admin / admin |
+| Streamlit UI | http://localhost:8501 | - / - |
 | MinIO Console | http://localhost:9001 | admin / admin123 |
 | PostgreSQL | localhost:5432 | admin / admin |
