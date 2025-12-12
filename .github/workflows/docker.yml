@@ -116,6 +116,8 @@ jobs:
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
 
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
+
             # 1) Carpeta base
             sudo mkdir -p /opt/sp500
             cd /opt/sp500
@@ -153,19 +155,28 @@ jobs:
               sudo docker rm sp500-etl || true
             fi
 
+            # 5.1) Scheduler / Triggerer / Streamlit: stop+rm si existen (así recreás limpio)
+            for c in airflow-scheduler airflow-triggerer streamlit-app; do
+              if sudo docker ps -a --format '{{.Names}}' | grep -q "^${c}$"; then
+                echo "Deteniendo y eliminando contenedor ${c}..."
+                sudo docker stop "${c}" || true
+                sudo docker rm "${c}" || true
+              fi
+            done
+
             # 6) Borrar imagen anterior para liberar espacio (si existe)
-            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q '^${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest$'; then
-              echo "Eliminando imagen anterior ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest para liberar espacio..."
-              sudo docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest || true
+            if sudo docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE}$"; then
+              echo "Eliminando imagen anterior ${IMAGE} para liberar espacio..."
+              sudo docker rmi "${IMAGE}" || true
             fi
 
             # 7) Limpiar imágenes y contenedores no usados (sin tocar volúmenes de datos)
             sudo docker container prune -f || true
             sudo docker image prune -f || true
 
-            # 8) Pull de la última imagen del ETL
+            # 8) Pull de la última imagen del ETL (UNA SOLA VEZ)
             echo "Haciendo pull de la nueva imagen..."
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            sudo docker pull "${IMAGE}"
 
             # 9) URL de conexión de Airflow a Postgres (dentro de la red airflow-net)
             AIRFLOW_DB_URI="postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
@@ -179,7 +190,7 @@ jobs:
               -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY} \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest airflow db migrate || true
 
-            # 11) Levantar Airflow webserver con CloudWatch Logs y la DB correcta
+            # 11) Levantar Airflow webserver
             sudo docker run -d \
               --name sp500-etl \
               --network airflow-net \
@@ -202,17 +213,10 @@ jobs:
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               -e ENVIRONMENT=prod \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest webserver
+              "${IMAGE}" webserver
 
             # 12) Levantar Airflow SCHEDULER
             echo "Levantando Scheduler..."
-
-            if sudo docker ps -a --format '{{.Names}}' | grep -q '^airflow-scheduler$'; then
-              echo "Recreando contenedor airflow-scheduler..."
-              sudo docker stop airflow-scheduler || true
-              sudo docker rm airflow-scheduler || true
-            fi
-
             sudo docker run -d \
               --name airflow-scheduler \
               --network airflow-net \
@@ -221,26 +225,19 @@ jobs:
               --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-scheduler \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
-              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY } \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY } \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
+              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               -e ENVIRONMENT=prod \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest scheduler
+              "${IMAGE}" scheduler
 
             # 13) Levantar Airflow TRIGGERER
             echo "Levantando Triggerer..."
-
-            if sudo docker ps -a --format '{{.Names}}' | grep -q '^airflow-triggerer$'; then
-              echo "Recreando contenedor airflow-triggerer..."
-              sudo docker stop airflow-triggerer || true
-              sudo docker rm airflow-triggerer || true
-            fi
-
             sudo docker run -d \
               --name airflow-triggerer \
               --network airflow-net \
@@ -249,16 +246,16 @@ jobs:
               --log-opt awslogs-region=${AWS_DEFAULT_REGION} \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-triggerer \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
-              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY } \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY } \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
+              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
               -e AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} \
               -e S3_BUCKET=${S3_BUCKET} \
               -e ENVIRONMENT=prod \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest triggerer
+              "${IMAGE}" triggerer
 
           EOF
 
