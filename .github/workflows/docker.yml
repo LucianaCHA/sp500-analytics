@@ -78,6 +78,7 @@ jobs:
 
   # === DEPLOY DE AIRFLOW/ETL EN EC2 ===
   deploy-etl-to-ec2:
+    environment: prod
     name: Deploy ETL/Airflow to EC2
     needs: build-and-push-etl
     runs-on: ubuntu-latest
@@ -94,9 +95,7 @@ jobs:
       S3_BUCKET: ${{ vars.S3_BUCKET }}
       AIRFLOW__CORE__FERNET_KEY: ${{ vars.AIRFLOW__CORE__FERNET_KEY }}
       AIRFLOW__WEBSERVER__SECRET_KEY: ${{ vars.AIRFLOW__WEBSERVER__SECRET_KEY }}
-      IMAGE_NAME: sp500-etl
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-
+      pepe: pepe
 
 
     steps:
@@ -249,6 +248,7 @@ jobs:
 
   # === DEPLOY DE STREAMLIT EN EC2 ===
   deploy-streamlit-to-ec2:
+    environment: prod
     name: Deploy Streamlit to EC2
     needs: build-and-push-streamlit
     runs-on: ubuntu-latest
