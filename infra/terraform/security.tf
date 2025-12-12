@@ -3,31 +3,31 @@ resource "aws_security_group" "etl_sg" {
   description = "Acceso a la instancia ETL / Airflow"
   vpc_id      = aws_vpc.main.id
 
-  # SSH
+  # SSH (ABIERTO AL MUNDO)
   ingress {
     description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${var.allowed_ip}/32"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Airflow UI (8080)
+  # Airflow UI (8080) (ABIERTO AL MUNDO)
   ingress {
     description = "Airflow UI"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["${var.allowed_ip}/32"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Streamlit (8501)
+  # Streamlit (8501) (ABIERTO AL MUNDO)
   ingress {
     description = "Streamlit UI"
     from_port   = 8501
     to_port     = 8501
     protocol    = "tcp"
-    cidr_blocks = ["${var.allowed_ip}/32"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Salida a Internet
