@@ -244,6 +244,6 @@ jobs:
               -e S3_BUCKET=${S3_BUCKET} \
               --entrypoint /bin/bash \
               "${IMAGE}" \
-              -lc "streamlit run dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0"
+              -lc "streamlit run /opt/airflow/dashboard/streamlit_app/app.py --server.port 8501 --server.address 0.0.0.0"
 
           EOF
