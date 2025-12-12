@@ -12,3 +12,4 @@ lxml==5.3.0
 yfinance==0.2.66
 s3fs
 rapidfuzz
+streamlit==1.39.0
