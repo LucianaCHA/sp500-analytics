@@ -66,6 +66,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ vars.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
       S3_BUCKET: ${{ vars.S3_BUCKET }}
+      AIRFLOW__CORE__FERNET_KEY: ${{ vars.AIRFLOW__CORE__FERNET_KEY }}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${{ vars.AIRFLOW__WEBSERVER__SECRET_KEY }}
 
     steps:
       - name: Checkout repo
@@ -142,6 +144,8 @@ jobs:
             sudo docker run --rm \
               --network airflow-net \
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY } \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY } \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
               airflow db migrate || true
 
@@ -156,6 +160,8 @@ jobs:
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-webserver \
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY } \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY } \
               -e AWS_DB_USER=${AWS_DB_USER} \
               -e AWS_DB_PASSWORD=${AWS_DB_PASSWORD} \
               -e AWS_DB_HOST=${AWS_DB_HOST} \
@@ -186,6 +192,8 @@ jobs:
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-scheduler \
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY } \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY } \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
@@ -212,6 +220,8 @@ jobs:
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-triggerer \
               -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY=${AIRFLOW__CORE__FERNET_KEY } \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW__WEBSERVER__SECRET_KEY } \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
               -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
