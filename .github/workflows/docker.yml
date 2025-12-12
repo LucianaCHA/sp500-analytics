@@ -114,26 +114,38 @@ jobs:
 
       - name: Deploy ETL/Airflow to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
 
-            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
+            # === Inyectar envs del runner al host remoto (EC2) ===
+            export AWS_DB_USER='${{ env.AWS_DB_USER }}'
+            export AWS_DB_PASSWORD='${{ env.AWS_DB_PASSWORD }}'
+            export AWS_DB_HOST='${{ env.AWS_DB_HOST }}'
+            export AWS_DB_PORT='${{ env.AWS_DB_PORT }}'
+            export AWS_DB_NAME='${{ env.AWS_DB_NAME }}'
+            export AWS_ACCESS_KEY_ID='${{ env.AWS_ACCESS_KEY_ID }}'
+            export AWS_SECRET_ACCESS_KEY='${{ env.AWS_SECRET_ACCESS_KEY }}'
+            export AWS_DEFAULT_REGION='${{ env.AWS_DEFAULT_REGION }}'
+            export AWS_REGION='${{ env.AWS_DEFAULT_REGION }}'
+            export S3_BUCKET='${{ env.S3_BUCKET }}'
+            export AIRFLOW__CORE__FERNET_KEY='${{ env.AIRFLOW__CORE__FERNET_KEY }}'
+            export AIRFLOW__WEBSERVER__SECRET_KEY='${{ env.AIRFLOW__WEBSERVER__SECRET_KEY }}'
+
+            # Sanitizar dockerhub username (por si tiene newline)
+            DOCKERHUB_USER='${{ secrets.DOCKERHUB_USERNAME }}'
+            DOCKERHUB_USER="$(echo -n "$DOCKERHUB_USER" | tr -d '\r\n' | xargs)"
+
+            IMAGE="${DOCKERHUB_USER}/${{ env.IMAGE_NAME }}:latest"
+            echo "IMAGE=[$IMAGE]" | cat -A
 
             sudo mkdir -p /opt/sp500
             cd /opt/sp500
 
-            if ! sudo systemctl is-active --quiet docker; then
-              sudo systemctl start docker || true
-            fi
-
+            sudo systemctl start docker || true
             sudo docker network create airflow-net 2>/dev/null || true
 
             # --- Postgres (volumen persistente) ---
-            if sudo docker ps -a --format '{{.Names}}' | grep -q '^airflow-postgres$'; then
-              sudo docker stop airflow-postgres || true
-              sudo docker rm airflow-postgres || true
-            fi
-
+            sudo docker rm -f airflow-postgres 2>/dev/null || true
             sudo docker run -d \
               --name airflow-postgres \
               --network airflow-net \
@@ -147,29 +159,26 @@ jobs:
 
             # --- Stop/RM contenedores ETL/Airflow ---
             for c in sp500-etl airflow-scheduler airflow-triggerer; do
-              if sudo docker ps -a --format '{{.Names}}' | grep -q "^${c}$"; then
-                sudo docker stop "${c}" || true
-                sudo docker rm "${c}" || true
-              fi
+              sudo docker rm -f "$c" 2>/dev/null || true
             done
 
             sudo docker container prune -f || true
             sudo docker image prune -a -f || true
             sudo docker builder prune -a -f || true
 
-            sudo docker pull "${IMAGE}"
+            sudo docker pull "$IMAGE"
 
             AIRFLOW_DB_URI="postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
 
-            # Migración DB (IMPORTANTE: sin || true mientras debugueás)
+            # Migración DB
             sudo docker run --rm \
               --network airflow-net \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
-              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY="$AIRFLOW__CORE__FERNET_KEY" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="$AIRFLOW__WEBSERVER__SECRET_KEY" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
-              "${IMAGE}" airflow db migrate
+              "$IMAGE" airflow db migrate
 
             # Webserver
             sudo docker run -d \
@@ -178,70 +187,62 @@ jobs:
               --restart unless-stopped \
               -p 8080:8080 \
               --log-driver awslogs \
-              --log-opt awslogs-region="${AWS_DEFAULT_REGION}" \
+              --log-opt awslogs-region="$AWS_DEFAULT_REGION" \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-etl-webserver \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
-              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
-              -e AWS_DB_USER="${AWS_DB_USER}" \
-              -e AWS_DB_PASSWORD="${AWS_DB_PASSWORD}" \
-              -e AWS_DB_HOST="${AWS_DB_HOST}" \
-              -e AWS_DB_PORT="${AWS_DB_PORT}" \
-              -e AWS_DB_NAME="${AWS_DB_NAME}" \
-              -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-              -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-              -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}" \
-              -e AWS_REGION="${AWS_DEFAULT_REGION}" \
-              -e S3_BUCKET="${S3_BUCKET}" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY="$AIRFLOW__CORE__FERNET_KEY" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="$AIRFLOW__WEBSERVER__SECRET_KEY" \
+              -e AWS_DB_USER="$AWS_DB_USER" \
+              -e AWS_DB_PASSWORD="$AWS_DB_PASSWORD" \
+              -e AWS_DB_HOST="$AWS_DB_HOST" \
+              -e AWS_DB_PORT="$AWS_DB_PORT" \
+              -e AWS_DB_NAME="$AWS_DB_NAME" \
+              -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+              -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+              -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+              -e AWS_REGION="$AWS_REGION" \
+              -e S3_BUCKET="$S3_BUCKET" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
               -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
-              "${IMAGE}" webserver
+              "$IMAGE" webserver
 
             # Scheduler
             sudo docker run -d \
               --name airflow-scheduler \
               --network airflow-net \
               --restart unless-stopped \
-              --log-driver awslogs \
-              --log-opt awslogs-region="${AWS_DEFAULT_REGION}" \
-              --log-opt awslogs-group=/sp500/etl \
-              --log-opt awslogs-stream=sp500-etl-scheduler \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
-              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY="$AIRFLOW__CORE__FERNET_KEY" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="$AIRFLOW__WEBSERVER__SECRET_KEY" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
-              -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-              -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-              -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}" \
-              -e AWS_REGION="${AWS_DEFAULT_REGION}" \
-              -e S3_BUCKET="${S3_BUCKET}" \
+              -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+              -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+              -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+              -e AWS_REGION="$AWS_REGION" \
+              -e S3_BUCKET="$S3_BUCKET" \
               -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
-              "${IMAGE}" scheduler
+              "$IMAGE" scheduler
 
             # Triggerer
             sudo docker run -d \
               --name airflow-triggerer \
               --network airflow-net \
               --restart unless-stopped \
-              --log-driver awslogs \
-              --log-opt awslogs-region="${AWS_DEFAULT_REGION}" \
-              --log-opt awslogs-group=/sp500/etl \
-              --log-opt awslogs-stream=sp500-etl-triggerer \
-              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="${AIRFLOW_DB_URI}" \
-              -e AIRFLOW__CORE__FERNET_KEY="${AIRFLOW__CORE__FERNET_KEY}" \
-              -e AIRFLOW__WEBSERVER__SECRET_KEY="${AIRFLOW__WEBSERVER__SECRET_KEY}" \
+              -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW_DB_URI" \
+              -e AIRFLOW__CORE__FERNET_KEY="$AIRFLOW__CORE__FERNET_KEY" \
+              -e AIRFLOW__WEBSERVER__SECRET_KEY="$AIRFLOW__WEBSERVER__SECRET_KEY" \
               -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
-              -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-              -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-              -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION}" \
-              -e AWS_REGION="${AWS_DEFAULT_REGION}" \
-              -e S3_BUCKET="${S3_BUCKET}" \
+              -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+              -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+              -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+              -e AWS_REGION="$AWS_REGION" \
+              -e S3_BUCKET="$S3_BUCKET" \
               -e SP500_URL="https://raw.githubusercontent.com/lucianabuzzo/sp500-analytics/main/data/sp500_companies.csv" \
               -e ENVIRONMENT=prod \
-              "${IMAGE}" triggerer
+              "$IMAGE" triggerer
           EOF
 
   # === DEPLOY DE STREAMLIT EN EC2 ===
@@ -269,44 +270,50 @@ jobs:
 
       - name: Deploy Streamlit to EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
 
-            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/sp500-streamlit:latest"
+            export AWS_DEFAULT_REGION='${{ env.AWS_DEFAULT_REGION }}'
+            export AWS_REGION='${{ env.AWS_DEFAULT_REGION }}'
+            export S3_BUCKET='${{ env.S3_BUCKET }}'
+            export AWS_ACCESS_KEY_ID='${{ env.AWS_ACCESS_KEY_ID }}'
+            export AWS_SECRET_ACCESS_KEY='${{ env.AWS_SECRET_ACCESS_KEY }}'
+
+            DOCKERHUB_USER='${{ secrets.DOCKERHUB_USERNAME }}'
+            DOCKERHUB_USER="$(echo -n "$DOCKERHUB_USER" | tr -d '\r\n' | xargs)"
+
+            IMAGE="${DOCKERHUB_USER}/sp500-streamlit:latest"
+            echo "IMAGE=[$IMAGE]" | cat -A
 
             sudo mkdir -p /opt/sp500
             cd /opt/sp500
 
-            if ! sudo systemctl is-active --quiet docker; then
-              sudo systemctl start docker || true
-            fi
+            sudo systemctl start docker || true
 
-            for id in \$(sudo docker ps --filter "publish=8501" -q); do
-              sudo docker stop "\$id" || true
-              sudo docker rm "\$id" || true
+            for id in $(sudo docker ps --filter "publish=8501" -q); do
+              sudo docker rm -f "$id" 2>/dev/null || true
             done
 
-            sudo docker stop sp500-streamlit streamlit-app 2>/dev/null || true
-            sudo docker rm sp500-streamlit streamlit-app 2>/dev/null || true
+            sudo docker rm -f sp500-streamlit streamlit-app 2>/dev/null || true
 
             sudo docker container prune -f || true
             sudo docker image prune -a -f || true
             sudo docker builder prune -a -f || true
 
-            sudo docker pull "\${IMAGE}"
+            sudo docker pull "$IMAGE"
 
             sudo docker run -d \
               --name sp500-streamlit \
               --restart unless-stopped \
               -p 8501:8501 \
               --log-driver awslogs \
-              --log-opt awslogs-region="\${AWS_DEFAULT_REGION}" \
+              --log-opt awslogs-region="$AWS_DEFAULT_REGION" \
               --log-opt awslogs-group=/sp500/etl \
               --log-opt awslogs-stream=sp500-streamlit \
-              -e AWS_ACCESS_KEY_ID="\${AWS_ACCESS_KEY_ID}" \
-              -e AWS_SECRET_ACCESS_KEY="\${AWS_SECRET_ACCESS_KEY}" \
-              -e AWS_DEFAULT_REGION="\${AWS_DEFAULT_REGION}" \
-              -e AWS_REGION="\${AWS_DEFAULT_REGION}" \
-              -e S3_BUCKET="\${S3_BUCKET}" \
-              "\${IMAGE}"
+              -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+              -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+              -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+              -e AWS_REGION="$AWS_REGION" \
+              -e S3_BUCKET="$S3_BUCKET" \
+              "$IMAGE"
           EOF
