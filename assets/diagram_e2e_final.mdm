@@ -1,0 +1,40 @@
+---
+config:
+  theme: neo-dark
+  look: neo
+  layout: elk
+title: End-to-End Data Platform — S3 → Airflow → RDS → Streamlit
+---
+flowchart TB
+ subgraph INGEST["Data Ingestion:::aws"]
+        API["External APIs / CSV Sources"]
+        S3_RAW["S3 Raw Zone"]
+  end
+ subgraph ORCH["Airflow Orchestration:::airflow"]
+        DAG_RAW["DAG Raw: Ingest → S3"]
+        DAG_BRONZE["DAG Bronze: S3 → RDS"]
+        DAG_SILVER["DAG Silver: SQL Transformations"]
+        DAG_GOLD["DAG Gold : Prepare for Analytics to Streamlit"]
+  end
+ subgraph STORAGE["AWS RDS + Aurora:::aws"]
+        BRONZE_DB["Bronze (Raw SQL Tables)"]
+        SILVER_DB["Silver (Cleaned / Modeled Tables)"]
+        GOLD_DB["Gold (Aggregated, Ready for Streamlit)"]
+  end
+ subgraph BI["Analytics / Dashboard:::bi"]
+        DASHBOARD["Streamlit"]
+  end
+    API --> DAG_RAW
+    DAG_RAW --> S3_RAW
+    S3_RAW --> DAG_BRONZE
+    DAG_BRONZE --> BRONZE_DB
+    BRONZE_DB --> DAG_SILVER
+    DAG_SILVER --> SILVER_DB
+    SILVER_DB --> DAG_GOLD
+    DAG_GOLD --> GOLD_DB
+    GOLD_DB --> DASHBOARD
+
+    classDef aws fill:#1f2a36,stroke:#26a7de,stroke-width:2px
+    classDef airflow fill:#223657,stroke:#33c3ff,stroke-width:1.5px
+    classDef tools fill:#423d6d,stroke:#a78bfa,stroke-width:2px
+    classDef bi fill:#2b3a0a,stroke:#d4e157,stroke-width:2px

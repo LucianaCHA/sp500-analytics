@@ -1,4 +1,4 @@
-# Diseño de la Solución  
+# Diseño de la Solución
 Proyecto: SP500 Analytics
 
 ## Índice
@@ -19,8 +19,8 @@ Proyecto: SP500 Analytics
     - [Calidad de Datos](#calidad-de-datos)
 - [6. Diseño del Pipeline de Datos](#6-diseño-del-pipeline-de-datos)
     - [6.1 Ingesta Raw](#61-ingesta-raw)
-    - [6.2 Transformación Raw → Bronze](#62-transformación-raw-→-bronze)
-    - [6.3 Transformación Bronze → Silver](#63-transformación-bronze-→-silver)
+    - [6.2 Transformación Raw a Bronze](#62-transformación-raw-a-bronze)
+    - [6.3 Transformación Bronze a Silver](#63-transformación-bronze-a-silver)
 - [7. Modelo de Datos (WIP)](#7-modelo-de-datos-wip)
 - [8. Decisiones Técnicas y Trade-offs](#8-decisiones-técnicas-y-trade-offs)
     - [8.1 Elección de Data Lake sobre Data Warehouse](#81-elección-de-data-lake-sobre-data-warehouse)
@@ -34,6 +34,7 @@ Proyecto: SP500 Analytics
 ## 1. Introducción
 Este documento describe el diseño técnico de la plataforma analítica desarrollada para el proyecto SP500 Analytics. Aquí se detallan las decisiones de arquitectura, herramientas seleccionadas, flujo de ingesta, modelado de datos y criterios técnicos que guían la implementación.
 
+La solución actual implementa un pipeline de datos basado en capas Raw → Bronze → Silver, con transformaciones realizadas íntegramente mediante scripts Python, y funcionando sobre infraestructura AWS aprovisionada con Terraform.
 
 ---
 
@@ -89,25 +90,41 @@ Estas preguntas determinan cómo se construyen las tablas Silver y el modelo dim
 ## 5. Herramientas y Tecnologías Seleccionadas
 
 ### Procesamiento
-- Python: ingesta, limpieza y transformación inicial.
+- Python (+ Pandas): ingesta, limpieza, normalización y métricas.
 
 ### Orquestación
 - Airflow, ejecutado dentro de Docker Compose.
 
 ### Almacenamiento
 - Amazon S3 como Data Lake.
-- PostgreSQL en AWS RDS para almacenamiento auxiliar y auditoría.
+- AWS RDS (PostgreSQL)
 
 ### Infraestructura
-- Terraform para aprovisionamiento (objetivo del Sprint).
-- Docker para empaquetado y uniformidad del entorno.
+- Terraform para provisión de:
+
+    - EC2 para Airflow
+    - RDS
+    - Buckets S3
+    - Roles y policies IAM
+
+- Docker para empaquetado.
 
 ### CI/CD
-- GitHub Actions para formato del código y validaciones (linting).
+- GitHub Actions para:
+
+    - Linting (pre-commit)
+
+    - Test básico
+
+    - Despliegue a EC2 vía SSH
+
+Las credenciales (AWS, EC2 SSH keys, fernet_key de Airflow, etc.) se manejan en:
+
+- GitHub Actions Secrets
+- Variables de entorno del workflow
 
 ### Calidad de Datos
-- En evaluación: Great Expectations o Soda.
-- La herramienta se definirá según el volumen final del dataset.
+- Plan a futuro: Great Expectations o Soda.
 
 ---
 
@@ -121,13 +138,13 @@ Pasos principales:
 
 El proceso es ejecutado mediante Airflow.
 
-### 6.2 Transformación Raw → Bronze
+### 6.2 Transformación Raw a Bronze
 - Limpieza de columnas.
 - Conversión de tipos de datos a formatos consistentes.
 - Eliminación de filas incompletas o corruptas.
 - Compresión y particionamiento (Apache Parquet).
 
-### 6.3 Transformación Bronze → Silver
+### 6.3 Transformación Bronze a Silver
 - Aplicación de lógica semántica.
 - Cálculo de métricas por empresa e índice.
 - Preparación de tablas fact y dimension.
@@ -157,8 +174,9 @@ Este borrador se ajustará tras definir las métricas definitivas del negocio.
 - Bajo costo en comparación con almacenamiento estructurado.
 
 ### 8.2 Uso de PostgreSQL como complemento
-- Se utiliza para auditoría y staging especial.
-- No se utiliza como fuente principal de consulta analítica.
+- Útil para servir datos a Streamlit
+- Excelente para hacer joins y consultas rápidas
+- Pero no es un DW ni soporta particionamiento avanzado
 
 ### 8.3 Airflow vs. Lambda
 - Airflow aporta mayor control, logging y mantenibilidad.
@@ -167,15 +185,11 @@ Este borrador se ajustará tras definir las métricas definitivas del negocio.
 ---
 
 ## 9. Futuras Extensiones
-- Implementación de Silver y Gold.
-- Dashboard final en Power BI, Tableau o Superset.
-- Ingesta incremental continua cuando nuevos archivos lleguen a S3.
-- Alertas de calidad de datos y monitoreo.
+- Incorporación de DBT para formalizar capa Silver/Gold.
+- Implementación de métricas Gold persistentes.
+- Pruebas de calidad de datos (GE/Soda).
 
 ---
 
 ## 10. Conclusión
-El diseño propuesto establece una arquitectura clara, modular y escalable para soportar análisis del S&P 500. La división por capas permite trazabilidad completa desde el origen hasta el análisis y facilita iteraciones futuras sin afectar las capas anteriores.
-
-La implementación inicial del Sprint 1 cubre las capas Raw y Bronze y establece la base para evolucionar hacia Silver, Gold y analítica avanzada en los siguientes sprints.
-
+La solución actual implementa un pipeline completo Raw → Bronze → Silver, con transformaciones en Python y consumo final vía Streamlit. La arquitectura es modular y escalable.
